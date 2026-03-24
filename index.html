@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MMD Studielivshjul</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        :root {
+            --bs-primary-rgb: 13, 110, 253; /* Bootstrap default blue primary */
+        }
+        body {
+            background-color: var(--bs-light);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: var(--bs-body-color);
+        }
+        .header-section {
+            padding: 2rem 0;
+            margin-bottom: 2rem;
+        }
+        .main-container {
+            max-width: 1400px;
+        }
+        .wheel-container {
+            position: relative;
+            width: 100%;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        #wheel-svg {
+            width: 100%;
+            height: auto;
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.1));
+        }
+        .description-card {
+            background: var(--bs-white);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            border-left: 5px solid var(--bs-info);
+            transition: transform 0.2s;
+        }
+        .description-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .description-card h5 {
+            color: var(--bs-primary);
+            font-weight: 600;
+        }
+        .nav-pills .nav-link {
+            color: var(--bs-primary);
+            font-weight: 500;
+            border: 1px solid var(--bs-primary);
+            margin: 0 0.5rem;
+        }
+        .nav-pills .nav-link.active {
+            background-color: var(--bs-primary);
+            color: var(--bs-white);
+        }
+        .footer-buttons {
+            position: sticky;
+            bottom: 0;
+            background: var(--bs-white);
+            padding: 1rem 0;
+            border-top: 1px solid var(--bs-border-color);
+            z-index: 2000;
+        }
+        .category-input-group {
+            margin-bottom: 1rem;
+        }
+        .form-shape {
+            fill: rgba(var(--bs-primary-rgb), 0.4);
+            stroke: var(--bs-primary);
+            stroke-width: 3;
+            stroke-linejoin: round;
+            pointer-events: none;
+        }
+        .grid-line {
+            stroke: var(--bs-border-color);
+            stroke-width: 1;
+            pointer-events: none;
+        }
+        .axis-line {
+            stroke: var(--bs-secondary);
+            stroke-width: 1.5;
+            pointer-events: none;
+        }
+        .sector-label {
+            font-size: 10px;
+            font-weight: 500;
+            fill: var(--bs-secondary-color);
+            pointer-events: none;
+        }
+        .scale-number {
+            font-size: 8px;
+            fill: var(--bs-secondary);
+            pointer-events: none;
+        }
+        .clickable-sector {
+            fill: transparent;
+            cursor: pointer;
+            transition: fill 0.2s;
+        }
+        .clickable-sector:hover {
+            fill: rgba(var(--bs-primary-rgb), 0.1);
+        }
+        .clickable-sector.active-value {
+            fill: rgba(var(--bs-primary-rgb), 0.2);
+        }
+        .clickable-sector:active {
+            fill: rgba(var(--bs-primary-rgb), 0.3);
+        }
+        .semester-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(33, 37, 41, 0.97); /* Toned-down dark gray instead of bright blue */
+            z-index: 3000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--bs-white);
+            transition: opacity 0.3s ease;
+            backdrop-filter: blur(8px); /* Added a bit of blur for a more modern look */
+        }
+        .semester-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        .semester-card {
+            background: var(--bs-white);
+            color: var(--bs-body-color);
+            padding: 2.5rem;
+            border-radius: 20px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            max-width: 500px;
+            width: 90%;
+        }
+        .settings-btn {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            z-index: 1050;
+        }
+        #wheel-svg {
+            width: 100%;
+            height: auto;
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.1));
+            overflow: visible;
+        }
+        @media (max-width: 768px) {
+            .wheel-container {
+                margin-bottom: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div id="semesterOverlay" class="semester-overlay">
+    <div class="semester-card">
+        <h2 class="mb-4 fw-bold">Vælg Semester</h2>
+        <p class="mb-4">Velkommen til MMD Studielivshjul. Vælg venligst dit nuværende semester for at fortsætte.</p>
+        <div class="d-grid gap-3">
+            <button class="btn btn-primary btn-lg py-3" onclick="selectSemester('1')">1. Semester</button>
+            <button class="btn btn-primary btn-lg py-3" onclick="selectSemester('2')">2. Semester</button>
+            <button class="btn btn-primary btn-lg py-3" onclick="selectSemester('3')">3. Semester</button>
+        </div>
+    </div>
+</div>
+
+<button class="btn btn-light shadow-sm settings-btn d-flex align-items-center gap-2" onclick="showSemesterSelection()">
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-gear-fill" viewBox="0 0 16 16">
+        <path d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.17.311c.585 1.01.124 2.308-.872 2.105l-.34-.1c-1.4-.413-1.4 1.574 0 1.987l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.17a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.17-.311c-.585-1.01-.124-2.308.872-2.105l.34.1c1.4.413 1.4-1.574 0-1.987l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.17a1.464 1.464 0 0 1-2.105-.872l-.1-.34zM8 10.93a2.929 2.929 0 1 1 0-5.86 2.929 2.929 0 0 1 0 5.858z"/>
+    </svg>
+    Skift semester
+</button>
+
+<div class="header-section">
+    <div class="container">
+        <h1 class="display-5 fw-bold mb-1 text-center">MMD STUDIELIVSHJUL</h1>
+        <p class="h4 text-primary mb-3 text-center" id="selectedSemesterTitle"></p>
+        <div class="row align-items-center">
+            <div class="col-lg-8">
+                <p class="lead">
+                    Vi vil gerne opfordre dig til at udfylde nedenstående studielivshjul. <br>
+                    Vi tager udgangspunkt i dit studielivshjul til SUS-samtalen. <br>
+                    Vurder på en skala fra 1–10, hvordan du klarer dig i kategorierne nedenfor.
+                </p>
+            </div>
+            <div class="col-lg-4">
+                <div class="card shadow-sm border-0 mb-3">
+                    <div class="card-body py-2">
+                        <h6 class="card-title fw-bold mb-1 small">Skala:</h6>
+                        <ul class="small mb-0 list-unstyled">
+                            <li><span class="badge bg-success me-1">8–10</span> Høj: Overskud og mestring.</li>
+                            <li><span class="badge bg-warning text-dark me-1">5–7</span> Middel: Udfordringer forekommer.</li>
+                            <li><span class="badge bg-danger me-1">1–4</span> Kritisk: Svært at følge med.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="d-flex justify-content-center mt-4 d-none">
+            <ul class="nav nav-pills" id="semesterTab" role="tablist">
+                <li class="nav-item">
+                    <button class="nav-link active" id="sem1-tab" data-semester="1">1. Semester</button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" id="sem2-tab" data-semester="2">2. Semester</button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" id="sem3-tab" data-semester="3">3. Semester</button>
+                </li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<div class="container main-container mb-5">
+    <div class="row justify-content-center">
+        <!-- Wheel Section -->
+        <div class="col-12 mb-5">
+            <div class="wheel-container">
+                <svg id="wheel-svg" viewBox="0 0 500 500" xmlns="http://www.w3.org/2000/svg">
+                    <!-- Background Circle -->
+                    <circle cx="250" cy="250" r="200" fill="white" stroke="#eee" stroke-width="1" />
+                    
+                    <!-- Clickable Areas -->
+                    <g id="clickable-areas"></g>
+                    
+                    <!-- Grid Circles (1-10) -->
+                    <g id="grid-circles"></g>
+                    
+                    <!-- Axis Lines -->
+                    <g id="axis-lines"></g>
+                    
+                    <!-- Form Shape -->
+                    <path id="form-shape" class="form-shape" d="" />
+                    
+                    <!-- Labels -->
+                    <g id="labels"></g>
+                </svg>
+            </div>
+        </div>
+
+        <!-- Description Section -->
+        <div class="col-12">
+            <div id="descriptions-container" class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+                <!-- Descriptions will be injected here -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="footer-buttons text-center shadow">
+    <div class="container d-flex justify-content-center gap-3">
+        <button class="btn btn-outline-primary px-4 py-2" onclick="copyUrl()">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-link-45deg me-1" viewBox="0 0 16 16">
+                <path d="M4.715 6.542 3.343 7.914a3 3 0 1 0 4.243 4.243l1.828-1.829A3 3 0 0 0 8.586 5.5L8 6.086a1 1 0 0 0-.154.199 2 2 0 0 1 .861 3.337L6.88 11.45a2 2 0 1 1-2.83-2.83l.793-.792a4 4 0 0 1-.128-1.287z"/>
+                <path d="M6.586 4.672A3 3 0 0 0 7.414 9.5l.775-.776a2 2 0 0 1-.896-3.346L9.12 3.55a2 2 0 1 1 2.83 2.83l-.793.792c.112.42.155.855.128 1.287l1.372-1.372a3 3 0 1 0-4.243-4.243z"/>
+            </svg>
+            Kopier URL
+        </button>
+        <button class="btn btn-primary px-4 py-2" onclick="exportPdf()">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-file-earmark-pdf me-1" viewBox="0 0 16 16">
+                <path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2M9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/>
+                <path d="M4.603 12.087a.8.8 0 0 1-.438-.42c-.195-.388-.13-.776.08-1.102.198-.307.526-.568.897-.787a14.7 14.7 0 0 1 1.482-.745 11.3 11.3 0 0 1 .65-.848c.203-.253.337-.469.413-.647a6.1 6.1 0 0 0 .155-1.293c.006-.31-.009-.744-.159-1.097a.4.4 0 0 1 .145-.494.4.4 0 0 1 .432.049c.17.13.213.314.232.508.02.19.017.443-.012.723-.048.455-.164.939-.333 1.343a14.7 14.7 0 0 1-1.076 1.946 16 16 0 0 1-.886 1.169c-.057.065-.114.128-.17.19a23 23 0 0 0-1.258 1.543c-.201.266-.351.484-.446.634a.45.45 0 0 1-.442.226m1.383-2.328c-.332.164-.618.34-.845.526-.213.174-.394.359-.512.544-.101.159-.142.339-.112.515.03.176.13.317.276.412a.45.45 0 0 0 .176.06c.056 0 .114-.015.17-.04.14-.059.297-.187.47-.384.21-.24.453-.591.737-1.058.147-.243.28-.493.398-.744a13 13 0 0 0-1.194.437m.656-3.41c.148.272.223.647.238.969.015.302-.012.591-.078.844A5.8 5.8 0 0 1 6.222 6.7c.07-.156.12-.34.151-.545.033-.217.039-.434.016-.632-.013-.113-.03-.213-.06-.296-.03-.083-.07-.147-.11-.194a.27.27 0 0 1-.03-.039.32.32 0 0 0-.014.006.1.1 0 0 0-.01.006q-.004.006-.01.012a1 1 0 0 0-.042.064c-.034.06-.059.133-.075.219m.836 1.493c.123.3.249.581.375.844a14 14 0 0 0 .699-1.238 6 6 0 0 0 .21-.51c-.13.06-.28.142-.443.246a11 11 0 0 0-.841.658m1.703 2.167c.12.137.257.269.41.395.28.23.611.376.918.41a.6.6 0 0 0 .277-.018c.209-.056.35-.182.43-.351.077-.162.081-.353.017-.517-.064-.162-.207-.3-.414-.408a2.5 2.5 0 0 0-1.033-.232 4 4 0 0 0-.608.06c.206.19.392.44.609.652"/>
+            </svg>
+            Eksporter PDF
+        </button>
+    </div>
+</div>
+
+<script>
+    const categoriesBySemester = {
+        '1-2': [
+            { id: 'kode', label: 'Kode', description: 'I hvor høj grad føler du dig klædt på til at arbejde med kode, også i forhold til den kommende eksamen? Er der noget som er teknisk vanskeligt at lære?' },
+            { id: 'ui', label: 'UI design og Figma', description: 'I hvor høj grad føler du dig klædt på til at arbejde med dette, også i forhold til den kommende eksamen? Er der noget, som er for abstrakt? Er der noget som er teknisk vanskeligt at lære?' },
+            { id: 'some', label: 'SoMe og video', description: 'I hvor høj grad føler du dig klædt på til at arbejde med dette, også i forhold til den kommende eksamen? Er det uklart i hvor høj grad der skal anvendes markedsføringsmetoder? Er der tekniske aspekter af videoarbejde, som volder udfordringer?' },
+            { id: 'ux', label: 'UX, user research og test', description: 'Giver UX begrebet mening for dig? Kan du se hvordan du kan undersøge målgrupper og hvordan man kan teste brugerrejsen i dit design?' },
+            { id: 'fritid', label: 'Balance mellem studie og fritid', description: 'Kan du få din fritid med interesser, venner, familie mm. til at harmonere med et fuldtidsstudie (37 timer om ugen)?' },
+            { id: 'projekt', label: 'Projektstyring og koordinering', description: 'Kan du anvende de metoder og digitale værktøj som akademiet har udstyret dig med til at arbejde med projekter? Er der noget du savner?' },
+            { id: 'fremmoede', label: 'Fremmøde og mødestabilitet', description: 'I hvor høj grad synes du selv du kan møde til undervisning? Er der udfordringer i dit liv pt. som gør det svært? (du skal ikke sige personlige ting til dette møde, det har vi ikke krav på at vide, men du kan evt. sige AT der er vanskeligheder pt).' },
+            { id: 'gruppe', label: 'Gruppearbejde', description: 'Hvordan ser du dig selv som en faglig person i gruppearbejde? Kan du få det til at fungere generelt? Har du mødt udfordringer, vi skal tale om? Oplever du generelt at blive respekteret af dine studiekammerater i gruppearbejde?' }
+        ],
+        '3': [
+            { id: 'valgfag', label: 'Valgfag', description: 'Reflekter over valgfagsperioden. I hvor høj grad vil du mene du er blevet klædt på til at anvende det, du har lært til brug i for eksempel praktik og den kommende afsluttende eksamensopgave på 4. semester?' },
+            { id: 'praktik', label: 'Praktik', description: 'Har du på nuværende tidspunkt en praktikplads? Føler du dig klar til praktik?' },
+            { id: 'faerdigheder', label: 'Færdigheder', description: 'I hvor høj grad vil du mene du har vedligeholdt ALT det, du har lært indtil nu på din uddannelse? Kan du se dig selv bruge det tilfredsstillende i for eksempel praktik og den kommende afsluttende eksamensopgave på 4. semester?' },
+            { id: 'mmd3', label: 'Multimediedesign 3', description: 'Reflekter over dette semesters undervisning efter valgfagsperioden. I hvor høj grad vil du mene du er blevet klædt på til at anvende det, du har lært på dette semester til brug i eksamensopgaven på 3. semester?' },
+            { id: 'fritid', label: 'Balance mellem studie og fritid', description: 'Kan du få din fritid med interesser, venner, familie mm. til at harmonere med et fuldtidsstudie (37 timer om ugen)?' },
+            { id: 'projekt', label: 'Projektstyring og koordinering', description: 'Kan du anvende de metoder og digitale værktøj som akademiet har udstyret dig med til at arbejde med projekter? Er der noget du savner?' },
+            { id: 'fremmoede', label: 'Fremmøde og mødestabilitet', description: 'I hvor høj grad synes du selv du kan møde til undervisning? Er der udfordringer i dit liv pt. som gør det svært? (du skal ikke sige personlige ting til dette møde, det har vi ikke krav på at vide, men du kan evt. sige AT der er vanskeligheder pt).' },
+            { id: 'gruppe', label: 'Gruppearbejde', description: 'Hvordan ser du sig selv som en faglig person i gruppearbejde? Kan du få det til at fungere generelt? Har du mødt udfordringer, vi skal tale om? Oplever du generelt at blive respekteret af dine studiekammerater i gruppearbejde?' }
+        ]
+    };
+
+    let currentSemester = '1';
+    let values = {
+        '1': [1, 1, 1, 1, 1, 1, 1, 1],
+        '2': [1, 1, 1, 1, 1, 1, 1, 1],
+        '3': [1, 1, 1, 1, 1, 1, 1, 1]
+    };
+
+    const svg = document.getElementById('wheel-svg');
+    const formShape = document.getElementById('form-shape');
+    const gridCircles = document.getElementById('grid-circles');
+    const clickableAreas = document.getElementById('clickable-areas');
+    const axisLines = document.getElementById('axis-lines');
+    const labelsGroup = document.getElementById('labels');
+    const descriptionsContainer = document.getElementById('descriptions-container');
+    const semesterOverlay = document.getElementById('semesterOverlay');
+
+    const centerX = 250;
+    const centerY = 250;
+    const maxRadius = 200;
+    const innerDeadZone = 30; // Makes value 1 larger
+
+    function init() {
+        // Load from URL
+        const params = new URLSearchParams(window.location.search);
+        let hasSemParam = false;
+        if (params.has('sem')) {
+            currentSemester = params.get('sem');
+            hasSemParam = true;
+            document.querySelectorAll('#semesterTab .nav-link').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.semester === currentSemester);
+            });
+            semesterOverlay.classList.add('hidden');
+        }
+        
+        if (params.has('v')) {
+            const v = params.get('v').split(',').map(Number);
+            if (v.length === 8) {
+                values[currentSemester] = v;
+            }
+        }
+
+        setupGrid();
+        setupClickableAreas();
+        render();
+        
+        // Event listeners for semester buttons
+        document.querySelectorAll('#semesterTab .nav-link').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                selectSemester(e.target.dataset.semester);
+            });
+        });
+    }
+
+    function selectSemester(sem) {
+        currentSemester = sem;
+        document.querySelectorAll('#semesterTab .nav-link').forEach(b => {
+            b.classList.toggle('active', b.dataset.semester === sem);
+        });
+        semesterOverlay.classList.add('hidden');
+        updateUrl();
+        render();
+    }
+
+    function showSemesterSelection() {
+        semesterOverlay.classList.remove('hidden');
+    }
+
+    function setupGrid() {
+        gridCircles.innerHTML = '';
+        axisLines.innerHTML = '';
+        
+        // Draw 10 circles
+        for (let i = 1; i <= 10; i++) {
+            const r = innerDeadZone + ((i / 10) * (maxRadius - innerDeadZone));
+            const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            circle.setAttribute("cx", centerX);
+            circle.setAttribute("cy", centerY);
+            circle.setAttribute("r", r);
+            circle.setAttribute("fill", "none");
+            circle.setAttribute("class", "grid-line");
+            gridCircles.appendChild(circle);
+            
+            // Numbers on scale
+            const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            text.setAttribute("x", centerX + 5);
+            text.setAttribute("y", centerY - r + 3);
+            text.setAttribute("class", "scale-number");
+            text.textContent = i;
+            gridCircles.appendChild(text);
+        }
+
+        // Draw 8 axis
+        for (let i = 0; i < 8; i++) {
+            const angle = (i * 45 - 90) * (Math.PI / 180);
+            const x2 = centerX + Math.cos(angle) * maxRadius;
+            const y2 = centerY + Math.sin(angle) * maxRadius;
+            
+            const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+            line.setAttribute("x1", centerX + Math.cos(angle) * innerDeadZone);
+            line.setAttribute("y1", centerY + Math.sin(angle) * innerDeadZone);
+            line.setAttribute("x2", x2);
+            line.setAttribute("y2", y2);
+            line.setAttribute("class", "axis-line");
+            axisLines.appendChild(line);
+        }
+    }
+
+    function setupClickableAreas() {
+        clickableAreas.innerHTML = '';
+        const sectors = 8;
+        const steps = 10;
+        
+        for (let i = 0; i < sectors; i++) {
+            for (let j = 1; j <= steps; j++) {
+                const innerR = innerDeadZone + (((j - 1) / steps) * (maxRadius - innerDeadZone));
+                const outerR = innerDeadZone + ((j / steps) * (maxRadius - innerDeadZone));
+                const startAngle = (i * 45 - 22.5 - 90) * (Math.PI / 180);
+                const endAngle = ((i + 1) * 45 - 22.5 - 90) * (Math.PI / 180);
+                
+                const x1 = centerX + Math.cos(startAngle) * innerR;
+                const y1 = centerY + Math.sin(startAngle) * innerR;
+                const x2 = centerX + Math.cos(startAngle) * outerR;
+                const y2 = centerY + Math.sin(startAngle) * outerR;
+                const x3 = centerX + Math.cos(endAngle) * outerR;
+                const y3 = centerY + Math.sin(endAngle) * outerR;
+                const x4 = centerX + Math.cos(endAngle) * innerR;
+                const y4 = centerY + Math.sin(endAngle) * innerR;
+                
+                const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                const d = `M ${x1} ${y1} L ${x2} ${y2} A ${outerR} ${outerR} 0 0 1 ${x3} ${y3} L ${x4} ${y4} A ${innerR} ${innerR} 0 0 0 ${x1} ${y1} Z`;
+                path.setAttribute("d", d);
+                path.setAttribute("class", "clickable-sector");
+                path.dataset.sector = i;
+                path.dataset.value = j;
+                path.onclick = () => updateValue(i, j);
+                
+                const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
+                title.textContent = `Værdi: ${j}`;
+                path.appendChild(title);
+                
+                clickableAreas.appendChild(path);
+            }
+        }
+    }
+
+    function render() {
+        const categories = currentSemester === '3' ? categoriesBySemester['3'] : categoriesBySemester['1-2'];
+        const currentValues = values[currentSemester];
+        
+        // Update semester title in header
+        const semesterTitle = document.getElementById('selectedSemesterTitle');
+        if (semesterTitle) {
+            semesterTitle.textContent = `${currentSemester}. Semester`;
+            // Add semester to PDF metadata title
+            document.title = `MMD Studielivshjul - ${currentSemester}. Semester`;
+        }
+        
+        // Update Clickable Areas visual feedback
+        document.querySelectorAll('.clickable-sector').forEach(path => {
+            const s = parseInt(path.dataset.sector);
+            const v = parseInt(path.dataset.value);
+            path.classList.toggle('active-value', currentValues[s] === v);
+        });
+
+        // Update Descriptions & Inputs
+        descriptionsContainer.innerHTML = '';
+        labelsGroup.innerHTML = '';
+        
+        let pathData = "";
+        
+        categories.forEach((cat, i) => {
+            // Description card
+            const col = document.createElement('div');
+            col.className = 'col';
+            col.innerHTML = `
+                <div class="description-card h-100 mb-0">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h5 class="mb-0 fs-6">${cat.label}</h5>
+                        <span class="badge bg-primary">${currentValues[i]}</span>
+                    </div>
+                    <p class="small text-muted mb-0" style="font-size: 0.8rem;">${cat.description}</p>
+                </div>
+            `;
+            descriptionsContainer.appendChild(col);
+            
+            // SVG Labels
+            const angle = (i * 45 - 90) * (Math.PI / 180);
+            const labelDist = maxRadius + 30;
+            const lx = centerX + Math.cos(angle) * labelDist;
+            const ly = centerY + Math.sin(angle) * labelDist;
+            
+            const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            text.setAttribute("x", lx);
+            text.setAttribute("y", ly);
+            text.setAttribute("text-anchor", "middle");
+            text.setAttribute("dominant-baseline", "middle");
+            text.setAttribute("class", "sector-label");
+            
+            // Split long labels
+            const words = cat.label.split(' ');
+            if (words.length > 2) {
+                const firstPart = words.slice(0, Math.ceil(words.length/2)).join(' ');
+                const secondPart = words.slice(Math.ceil(words.length/2)).join(' ');
+                
+                const tspan1 = document.createElementNS("http://www.w3.org/2000/svg", "tspan");
+                tspan1.setAttribute("x", lx);
+                tspan1.setAttribute("dy", "-0.6em");
+                tspan1.textContent = firstPart;
+                
+                const tspan2 = document.createElementNS("http://www.w3.org/2000/svg", "tspan");
+                tspan2.setAttribute("x", lx);
+                tspan2.setAttribute("dy", "1.2em");
+                tspan2.textContent = secondPart;
+                
+                text.appendChild(tspan1);
+                text.appendChild(tspan2);
+            } else {
+                text.textContent = cat.label;
+            }
+            
+            labelsGroup.appendChild(text);
+            
+            // Shape path
+            const valRadius = innerDeadZone + ((currentValues[i] / 10) * (maxRadius - innerDeadZone));
+            const px = centerX + Math.cos(angle) * valRadius;
+            const py = centerY + Math.sin(angle) * valRadius;
+            
+            if (i === 0) {
+                pathData += `M ${px} ${py}`;
+            } else {
+                pathData += ` L ${px} ${py}`;
+            }
+        });
+        
+        pathData += " Z";
+        formShape.setAttribute("d", pathData);
+    }
+
+    function updateValue(index, val) {
+        values[currentSemester][index] = parseInt(val);
+        updateUrl();
+        render();
+    }
+
+    function updateUrl() {
+        const url = new URL(window.location);
+        url.searchParams.set('sem', currentSemester);
+        url.searchParams.set('v', values[currentSemester].join(','));
+        window.history.replaceState({}, '', url);
+    }
+
+    function copyUrl() {
+        navigator.clipboard.writeText(window.location.href).then(() => {
+            alert('URL kopieret til udklipsholder!');
+        });
+    }
+
+    async function exportPdf() {
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF('p', 'mm', 'a4');
+
+        // Fang kun hjulet
+        const wheelEl = document.querySelector('.wheel-container');
+        const canvas = await html2canvas(wheelEl, {
+            scale: 2,
+            useCORS: true,
+            logging: false,
+            backgroundColor: '#ffffff'
+        });
+
+        const imgData = canvas.toDataURL('image/png');
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const margin = 15;
+        const usableWidth = pdfWidth - margin * 2;
+        const imgHeight = (canvas.height * usableWidth) / canvas.width;
+
+        // Tilføj semester-titel øverst
+        pdf.setFontSize(16);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(`MMD Studielivshjul - ${currentSemester}. Semester`, pdfWidth / 2, margin, { align: 'center' });
+
+        // Tilføj hjulet centreret under titlen
+        pdf.addImage(imgData, 'PNG', margin, margin + 10, usableWidth, imgHeight);
+
+        pdf.save(`MMD-Studielivshjul-Semester-${currentSemester}.pdf`);
+    }
+
+    init();
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
